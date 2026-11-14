@@ -152,9 +152,10 @@ def tg(method, params):
     with urllib.request.urlopen(url, data=data, timeout=20) as r:
         return json.loads(r.read())
 
-def send(text):
+def send(text, silent=False):
     return tg("sendMessage", {"chat_id": CFG["chat_id"], "text": text, "parse_mode": "HTML",
-                              "disable_web_page_preview": "true"})
+                              "disable_web_page_preview": "true",
+                              "disable_notification": "true" if silent else "false"})
 
 f6 = lambda x: f"{x:.6g}"
 def pct(lv, p): return f"{(lv / p - 1) * 100:+.1f}%"
@@ -176,19 +177,40 @@ def message(r):
     return "\n".join(lines)
 
 # ---------------------------------------------------------------- main
+def cairo_now():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.datetime.now(ZoneInfo("Africa/Cairo"))
+    except Exception:
+        return datetime.datetime.now()
+
+def summary(res):
+    lines = [f"🔎 فحص {cairo_now().strftime('%H:%M')}: ملقيتش عملة مؤشرها {CFG['threshold']:g} أو أكتر.",
+             f"عدد العملات القريبة من مقاومة: {len(res)}"]
+    if res:
+        lines.append("أعلى 5:")
+        for r in res[:5]:
+            lines.append(f"• {r['coin']}  {r['score']:.1f}/10  (المقاومة {r['dist']:+.1f}%)")
+    return "\n".join(lines)
+
 def run_once(dry=False, last_sent=None):
-    stamp = datetime.datetime.now().strftime("%H:%M")
+    stamp = cairo_now().strftime("%H:%M")
     res = scan()
     hits = [r for r in res if r["score"] >= CFG["threshold"]]
     top = ", ".join(f"{r['coin']} {r['score']:.1f}" for r in res[:5]) or "-"
     print(f"[{stamp}] {len(res)} near resistance | top: {top} | alerts: {len(hits)}", flush=True)
+    sent = 0
     for r in hits:
         if last_sent is not None and time.time() - last_sent.get(r["coin"], 0) < CFG["cooldown_min"] * 60:
             continue
+        sent += 1
         if dry: print(message(r), "\n")
         else:
             send(message(r))
             if last_sent is not None: last_sent[r["coin"]] = time.time()
+    if sent == 0:  # nothing new: still report that the scan ran (silent notification)
+        if dry: print(summary(res))
+        else: send(summary(res), silent=True)
 
 def main():
     a = sys.argv[1:]
