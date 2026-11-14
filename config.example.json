@@ -1,0 +1,8 @@
+{
+  "telegram_token": "PUT_YOUR_BOT_TOKEN_HERE",
+  "chat_id": "PUT_YOUR_CHAT_ID_HERE",
+  "threshold": 9.0,
+  "interval_sec": 900,
+  "top_n": 130,
+  "cooldown_min": 120
+}
